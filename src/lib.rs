@@ -17,6 +17,7 @@ impl BitVector {
         }
     }
 
+    // create a BitVector without initializing any helper data structures
     pub fn load_from_string(data: &str) -> Self {
         let data_it :Vec<bool> =data.chars().map(|c| {
             c == '1'
@@ -27,7 +28,6 @@ impl BitVector {
         for (i, &b) in data_it.iter().enumerate() {
             if i != 0 && i % UNIT_SIZE_BITS == 0 {
                 bit_vector.data.push(tmp);
-                println!("{:64b}", tmp);
                 tmp = 0;
             }
             if b {
@@ -39,10 +39,12 @@ impl BitVector {
         bit_vector
     }
 
+    // initializes helper data structures
     pub fn init(&self) {
         todo!("init helper structures")
     }
 
+    // get bit at index
     pub fn access(&self, index: usize) -> bool {
         let vec_index = index / UNIT_SIZE_BITS;
         let unit_index = index % UNIT_SIZE_BITS;
@@ -52,10 +54,12 @@ impl BitVector {
         a
     }
 
+    // get number of 0/1 before index
     pub fn rank(&self, bit: bool, index: usize) -> usize {
         todo!("rank")
     }
 
+    // get position of index-th 0/1
     pub fn select(&self, bit: bool, index: usize) -> usize {
         todo!("select")
     }
