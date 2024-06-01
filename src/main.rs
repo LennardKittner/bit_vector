@@ -31,7 +31,7 @@ fn main() {
     let path_in = &args[1];
     let path_out = &args[2];
 
-    let (bit_vector, commands) = parse_input(path_in);
+    let (mut bit_vector, commands) = parse_input(path_in);
 
     bit_vector.init();
 
@@ -46,7 +46,8 @@ fn main() {
                 let result = bit_vector.access(index);
                 let end_time = Instant::now();
                 time = end_time - start_time;
-                if result { 1 } else { 0 } },
+                result
+            }
             RANK{bit , index} => {
                 let start_time = Instant::now();
                 let result = bit_vector.rank(bit, index);

@@ -1,3 +1,4 @@
+use std::f64;
 use std::mem::size_of;
 
 type Unit = u64;
@@ -6,14 +7,26 @@ const UNIT_SIZE_BYTES: usize = size_of::<Unit>();
 
 pub struct BitVector {
     data: Vec<Unit>,
+    blocks: Vec<usize>,
+    super_blocks: Vec<usize>,
     len: usize,
+    block_size: usize,
+    super_block_size: usize,
+}
+
+struct Block {
+
 }
 
 impl BitVector {
     pub fn new() -> Self {
         BitVector {
             data: Vec::new(),
-            len: 0
+            blocks: Vec::new(),
+            super_blocks: Vec::new(),
+            len: 0,
+            block_size: 0,
+            super_block_size: 0,
         }
     }
 
@@ -40,26 +53,65 @@ impl BitVector {
     }
 
     // initializes helper data structures
-    pub fn init(&self) {
-        todo!("init helper structures")
+    pub fn init(&mut self) {
+        //TODO: maybe size optimization
+        //TODO: maybe avoid access
+        //TODO: out of bounds access
+        self.block_size = ((self.len as f64).log2() / 2f64) as usize;
+        self.super_block_size = self.block_size.pow(2);
+
+        // generate super blocks
+        self.super_blocks.reserve_exact(self.len / self.super_block_size);
+        let mut block_0 = 0;
+        for current_bit in 0..self.super_block_size {
+            block_0 += self.access(current_bit);
+        }
+        self.super_blocks.push(block_0);
+
+        for current_super_block in 1..(self.len / self.super_block_size) {
+            let mut block = self.super_blocks[current_super_block -1];
+            for current_bit in (current_super_block * self.super_block_size)..((current_super_block +1) * self.super_block_size) {
+                block += self.access(current_bit);
+            }
+            self.super_blocks.push(block);
+        }
+
+        // generate blocks
+        self.blocks.reserve_exact(self.len / self.block_size);
+        for current_super_block in 0..(self.len / self.super_block_size) {
+            let mut block_0 = 0;
+            for i in (current_super_block*self.super_block_size)..(current_super_block*self.super_block_size + self.block_size) {
+                block_0 += self.access(i);
+            }
+            self.blocks.push(block_0);
+
+            for current_block in 1..self.block_size {
+                let mut block = self.blocks[self.block_size * current_super_block + current_block -1];
+                for current_bit in (current_super_block * self.super_block_size + current_block * self.block_size)..(current_super_block * self.super_block_size + (current_block + 1) * self.block_size) {
+                    block += self.access(current_bit);
+                }
+                self.blocks.push(block);
+            }
+        }
     }
 
     // get bit at index
-    pub fn access(&self, index: usize) -> bool {
+    #[inline]
+    pub fn access(&self, index: usize) -> usize {
         let vec_index = index / UNIT_SIZE_BITS;
         let unit_index = index % UNIT_SIZE_BITS;
 
-        let a = (self.data[vec_index] >> unit_index) & 1 == 1;
-        println!("{a}");
-        a
+        ((self.data[vec_index] >> unit_index) & 1) as usize
     }
 
     // get number of 0/1 before index
+    #[inline]
     pub fn rank(&self, bit: bool, index: usize) -> usize {
         todo!("rank")
     }
 
     // get position of index-th 0/1
+    #[inline]
     pub fn select(&self, bit: bool, index: usize) -> usize {
         todo!("select")
     }
@@ -71,12 +123,35 @@ pub mod test {
 
     #[test]
     fn test_load_from_string_and_access() {
-        let data = "01001000101010000111101010101111100100001011100011100011010101001101010010101011111000011010110101010111110101010101011111100000111101010101010000111010101011110101";
+        let data = "010010001010100001111010101011111001000010111000111000110101010011010100101010111110000110101101010101111101010101010111111000001111010101010100001110101010111101010110011110010011";
         let bit_vector = BitVector::load_from_string(data);
 
         for (i, c) in data.chars().enumerate() {
-            println!("{i}");
-            assert_eq!(c == '1', bit_vector.access(i))
+            assert_eq!(c == '1', bit_vector.access(i) == 1)
+        }
+    }
+
+    #[test]
+    fn test_init() {
+        let data = "01001000101010000111101010101111100100001011100011100011010101001101010010101011111000011010110101010111110101010111000011101110";
+        let mut bit_vector = BitVector::load_from_string(data);
+        bit_vector.init();
+        for (i, super_block) in bit_vector.super_blocks.iter().enumerate() {
+            let mut sum = 0;
+            for current_bit in 0..((i+1) * bit_vector.super_block_size) {
+                sum += bit_vector.access(current_bit);
+            }
+            assert_eq!(&sum, super_block);
+        }
+
+        for (i, block) in bit_vector.blocks.iter().enumerate() {
+            let current_super_block = i / bit_vector.block_size;
+            let current_block = i % bit_vector.block_size;
+            let mut sum = 0;
+            for current_bit in (current_super_block * bit_vector.super_block_size)..(current_super_block * bit_vector.super_block_size + (current_block+1) * bit_vector.block_size) {
+                sum += bit_vector.access(current_bit);
+            }
+            assert_eq!(&sum, block, "current_super_block: {current_super_block}, current_block: {current_block}");
         }
     }
 }
