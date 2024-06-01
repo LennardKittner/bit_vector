@@ -7,15 +7,13 @@ const UNIT_SIZE_BYTES: usize = size_of::<Unit>();
 
 pub struct BitVector {
     data: Vec<Unit>,
-    blocks: Vec<usize>,
+    // holds blocks worst case need 10bit per entry
+    blocks: Vec<u16>,
+    // holds super blocks worst case need 64bit per entry
     super_blocks: Vec<usize>,
     len: usize,
     block_size: usize,
     super_block_size: usize,
-}
-
-struct Block {
-
 }
 
 impl BitVector {
@@ -83,14 +81,14 @@ impl BitVector {
             for i in (current_super_block*self.super_block_size)..(current_super_block*self.super_block_size + self.block_size) {
                 block_0 += self.access(i);
             }
-            self.blocks.push(block_0);
+            self.blocks.push(block_0 as u16);
 
             for current_block in 1..self.block_size {
-                let mut block = self.blocks[self.block_size * current_super_block + current_block -1];
+                let mut block = self.blocks[self.block_size * current_super_block + current_block -1] as usize;
                 for current_bit in (current_super_block * self.super_block_size + current_block * self.block_size)..(current_super_block * self.super_block_size + (current_block + 1) * self.block_size) {
                     block += self.access(current_bit);
                 }
-                self.blocks.push(block);
+                self.blocks.push(block as u16);
             }
         }
     }
@@ -152,7 +150,7 @@ pub mod test {
             for current_bit in (current_super_block * bit_vector.super_block_size)..(current_super_block * bit_vector.super_block_size + (current_block+1) * bit_vector.block_size) {
                 sum += bit_vector.access(current_bit);
             }
-            assert_eq!(&sum, block, "current_super_block: {current_super_block}, current_block: {current_block}");
+            assert_eq!(sum, *block as usize, "current_super_block: {current_super_block}, current_block: {current_block}");
         }
     }
 
