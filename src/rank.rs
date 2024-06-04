@@ -59,18 +59,18 @@ impl RankAccelerator {
         //TODO: maybe size optimization
         //TODO: maybe avoid access
         //TODO: out of bounds access
-        self.block_size = cmp::max(((bit_vector.len as f64).log2() / 2f64) as usize, 1);
+        self.block_size = cmp::max(((bit_vector.len() as f64).log2() / 2f64) as usize, 1);
         self.super_block_size = self.block_size.pow(2);
 
         // generate super blocks
-        self.super_blocks.reserve_exact(bit_vector.len / self.super_block_size);
+        self.super_blocks.reserve_exact(bit_vector.len() / self.super_block_size);
         let mut block_0 = 0;
         for current_bit in 0..self.super_block_size {
             block_0 += bit_vector.access(current_bit);
         }
         self.super_blocks.push(block_0);
 
-        for current_super_block in 1..(bit_vector.len / self.super_block_size) {
+        for current_super_block in 1..(bit_vector.len() / self.super_block_size) {
             let mut block = self.super_blocks[current_super_block - 1];
             for current_bit in (current_super_block * self.super_block_size)..((current_super_block + 1) * self.super_block_size) {
                 block += bit_vector.access(current_bit);
@@ -79,8 +79,8 @@ impl RankAccelerator {
         }
 
         // generate blocks
-        self.blocks.reserve_exact(bit_vector.len / self.block_size);
-        for current_super_block in 0..(bit_vector.len / self.super_block_size) {
+        self.blocks.reserve_exact(bit_vector.len() / self.block_size);
+        for current_super_block in 0..(bit_vector.len() / self.super_block_size) {
             let mut block_0 = 0;
             for i in (current_super_block * self.super_block_size)..(current_super_block * self.super_block_size + self.block_size) {
                 block_0 += bit_vector.access(i);
@@ -137,20 +137,21 @@ pub mod test {
 
     fn test_init(data: &str) {
         let mut bit_vector = BitVector::load_from_string(data);
-        bit_vector.init();
-        for (i, super_block) in bit_vector.rank_accelerator.as_ref().unwrap().super_blocks.iter().enumerate() {
+        bit_vector.init_rank_structures();
+        let rank_accelerator = bit_vector.rank_accelerator.as_ref().unwrap();
+        for (i, super_block) in rank_accelerator.super_blocks.iter().enumerate() {
             let mut sum = 0;
-            for current_bit in 0..((i+1) * bit_vector.rank_accelerator.as_ref().unwrap().super_block_size) {
+            for current_bit in 0..((i+1) * rank_accelerator.super_block_size) {
                 sum += bit_vector.access(current_bit);
             }
             assert_eq!(&sum, super_block);
         }
 
-        for (i, block) in bit_vector.rank_accelerator.as_ref().unwrap().blocks.iter().enumerate() {
-            let current_super_block = i / bit_vector.rank_accelerator.as_ref().unwrap().block_size;
-            let current_block = i % bit_vector.rank_accelerator.as_ref().unwrap().block_size;
+        for (i, block) in rank_accelerator.blocks.iter().enumerate() {
+            let current_super_block = i / rank_accelerator.block_size;
+            let current_block = i % rank_accelerator.block_size;
             let mut sum = 0;
-            for current_bit in (current_super_block * bit_vector.rank_accelerator.as_ref().unwrap().super_block_size)..(current_super_block * bit_vector.rank_accelerator.as_ref().unwrap().super_block_size + (current_block+1) * bit_vector.rank_accelerator.as_ref().unwrap().block_size) {
+            for current_bit in (current_super_block * rank_accelerator.super_block_size)..(current_super_block * rank_accelerator.super_block_size + (current_block+1) * rank_accelerator.block_size) {
                 sum += bit_vector.access(current_bit);
             }
             assert_eq!(sum, *block as usize, "current_super_block: {current_super_block}, current_block: {current_block}");
