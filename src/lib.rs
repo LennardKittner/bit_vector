@@ -67,6 +67,14 @@ impl BitVector {
         self.init_rank_structures();
         self.init_select_structures();
     }
+    
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 
     // get bit at index
     #[inline]
