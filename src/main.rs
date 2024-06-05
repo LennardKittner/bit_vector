@@ -63,11 +63,12 @@ fn main() {
                 result
             },
         }.to_string());
-        println!("RESULT name={NAME} time={time} space={space}")
+        println!("RESULT name={NAME} time={} space={space}", time.as_millis())
     }
 
     let mut file_out = File::create(path_out).unwrap();
-    file_out.write_all(&results.as_bytes()).expect("Failed to write output file");
+    let out = results.join("\n");
+    file_out.write_all(out.as_bytes()).expect("Failed to write output file");
 }
 
 fn parse_input(path_in: &str) -> (BitVector, Vec<Command>) {
