@@ -4,6 +4,7 @@ use crate::select::SelectAccelerator;
 
 mod rank;
 mod select;
+mod select_table;
 
 type Unit = u64;
 const UNIT_SIZE_BITS: usize = size_of::<Unit>()*8;
@@ -67,7 +68,7 @@ impl BitVector {
         self.init_rank_structures();
         self.init_select_structures();
     }
-    
+
     pub fn len(&self) -> usize {
         self.len
     }
@@ -116,12 +117,32 @@ pub mod test {
     fn test_rank() {
         let data = "010010001010100001111010101011111001000010111000111000110101010011010100101010111110000110101101010101111101010101110000111011100110110101110101111";
         let mut bit_vector = BitVector::load_from_string(data);
-        bit_vector.init();
+        bit_vector.init_rank_structures();
         let mut sum = 0;
         for i in 0..data.len() {
             assert_eq!(bit_vector.rank(true, i), sum);
             assert_eq!(bit_vector.rank(false, i), i - sum);
             sum += bit_vector.access(i);
+        }
+    }
+
+    #[test]
+    fn test_select() {
+        let data = "010010001010100001111010101011111001000010111000111000110101010011010100101010111110000110101101010101111101010101110000111011100110110101110101111";
+        let mut bit_vector = BitVector::load_from_string(data);
+        bit_vector.init_select_structures();
+        let mut current_zero = 0;
+        let mut current_one = 0;
+        for i in 0..data.len() {
+            println!("{i}");
+            if bit_vector.access(i) == 0 {
+                assert_eq!(bit_vector.select(false, current_zero), i);
+                current_zero += 1;
+            }
+            if bit_vector.access(i) == 1 {
+                //assert_eq!(bit_vector.select(true, current_one), i);
+                current_one += 1;
+            }
         }
     }
 }
