@@ -101,6 +101,9 @@ impl BitVector {
 
 #[cfg(test)]
 pub mod test {
+    use rand::Rng;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
     use crate::BitVector;
 
     #[test]
@@ -127,14 +130,32 @@ pub mod test {
     }
 
     #[test]
-    fn test_select() {
+    fn test_select_small() {
         let data = "010010001010100001111010101011111001000010111000111000110101010011010100101010111110000110101101010101111101010101110000111011100110110101110101111";
+        test_select(data);
+    }
+    
+    #[test]
+    fn test_select_large() {
+        let mut data = String::new();
+        let mut rng = ChaCha8Rng::seed_from_u64(1234567);
+        for _ in 0..4096 {
+            if rng.gen_range(0..=1) == 0 {
+                data += "0";
+            } else {
+                data += "1";
+            }
+        }
+        test_select(&data);
+    }
+    
+
+    fn test_select(data: &str) {
         let mut bit_vector = BitVector::load_from_string(data);
         bit_vector.init_select_structures();
         let mut current_zero = 0;
         let mut current_one = 0;
         for i in 0..data.len() {
-            println!("{i}");
             if bit_vector.access(i) == 0 {
                 assert_eq!(bit_vector.select(false, current_zero), i);
                 current_zero += 1;
