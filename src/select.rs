@@ -192,7 +192,6 @@ pub mod test {
         }
     }
 
-    #[ignore]
     #[test]
     fn test_init_small_blocks() {
         let mut data = String::new();
@@ -219,21 +218,23 @@ pub mod test {
             }
             assert_eq!(select_accelerator.super_block_offsets[super_block_index], super_block_start);
             if i - super_block_start <= select_accelerator.large_super_block_size {
+                let start_next_super_block = i+1;
                 if let SuperBlock::SmallSuperBlock { block_offsets, blocks } = &select_accelerator.super_blocks[super_block_index] {
                     let mut block_index = 0;
                     let mut zeroes_in_block = 0;
                     let mut block_start = super_block_start;
-                    for j in super_block_start..i {
+                    for j in super_block_start..start_next_super_block {
                         zeroes_in_block += 1 - bit_vector.access(j);
-                        if zeroes_in_block != select_accelerator.zeros_per_block && j != i-1 {
+                        if zeroes_in_block != select_accelerator.zeros_per_block && j != start_next_super_block -1 {
                             continue;
                         }
                         assert_eq!(block_offsets[block_index], block_start);
                         if j - block_start <= select_accelerator.large_block_size {
+                            let start_next_block = j+1;
                             match &blocks[block_index] {
                                 Block::LargeBlock { select_table } => {
                                     let mut current_zero = 0;
-                                    for k in block_start..j {
+                                    for k in block_start..start_next_block {
                                         if bit_vector.access(k) == 0 {
                                             assert_eq!(select_table[current_zero], k);
                                             current_zero += 1;
@@ -242,13 +243,10 @@ pub mod test {
                                 },
                                 Block::SmallBlock { data } => {
                                     let mut tmp = 0;
-                                    for k in block_start..j {
+                                    for k in block_start..start_next_block {
                                         tmp |= bit_vector.access(k) << (k - block_start);
                                     }
-                                    if tmp != *data {
-                                        println!("alsökdjf")
-                                    }
-                                    //assert_eq!(data, &tmp)
+                                    assert_eq!(data, &tmp)
                                 }
                             }
                         }
