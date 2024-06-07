@@ -1,3 +1,4 @@
+use std::mem::size_of;
 use crate::BitVector;
 use crate::select::Block::{LargeBlock, SmallBlock};
 use crate::select::SuperBlock::{LargeSuperBlock, SmallSuperBlock};
@@ -42,6 +43,16 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
             large_super_block_size: 0,
             large_block_size: 0,
         }
+    }
+    
+    pub fn get_size(&self) -> usize {
+        self.super_block_offsets.capacity() * size_of::<usize>()
+        + self.super_blocks.capacity() * size_of::<SuperBlock<BIT>>()
+        + size_of::<usize>() //zeros_per_super_block
+        + size_of::<usize>() //zeros_per_block
+        + size_of::<usize>() //large_super_block_size
+        + size_of::<usize>() //large_block_size
+        //TODO: + select table
     }
     
     pub fn init(&mut self, bit_vector: &BitVector) {

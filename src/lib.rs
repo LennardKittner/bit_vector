@@ -35,6 +35,18 @@ impl BitVector {
         }
     }
 
+    pub fn get_size_rank(&self) -> usize {
+        self.rank_accelerator.as_ref().expect("Rank acceleration structures not initialized!").get_size()
+    }
+
+    pub fn get_size_select_0(&self) -> usize {
+        self.select_accelerator_0.as_ref().expect("Select acceleration structures not initialized!").get_size()
+    }
+
+    pub fn get_size_select_1(&self) -> usize {
+        self.select_accelerator_1.as_ref().expect("Select acceleration structures not initialized!").get_size()
+    }
+
     // create a BitVector without initializing any helper data structures
     pub fn load_from_string(data: &str) -> Self {
         let data_it :Vec<bool> =data.chars().map(|c| {
@@ -54,6 +66,7 @@ impl BitVector {
         }
         bit_vector.data.push(tmp);
         bit_vector.len = data.len();
+        bit_vector.data.shrink_to_fit();
         bit_vector
     }
 
@@ -106,9 +119,9 @@ impl BitVector {
     pub fn select(&self, bit: bool, index: usize) -> usize {
         // index -1 because select_accelerator is zero based
         if bit {
-            self.select_accelerator_1.as_ref().expect("Select acceleration structrues not initialized!").select(index-1)
+            self.select_accelerator_1.as_ref().expect("Select acceleration structures not initialized!").select(index-1)
         } else {
-            self.select_accelerator_0.as_ref().expect("Select acceleration structrues not initialized!").select(index-1)
+            self.select_accelerator_0.as_ref().expect("Select acceleration structures not initialized!").select(index-1)
         }
     }
 }

@@ -50,6 +50,7 @@ fn main() {
                 let result = bit_vector.access(index);
                 let end_time = Instant::now();
                 time = end_time - start_time;
+                space = 0;
                 result
             }
             Rank {bit , index} => {
@@ -57,6 +58,7 @@ fn main() {
                 let result = bit_vector.rank(bit, index);
                 let end_time = Instant::now();
                 time = end_time - start_time;
+                space = bit_vector.get_size_rank();
                 result
             },
             Select {bit, index} => {
@@ -64,6 +66,7 @@ fn main() {
                 let result = bit_vector.select(bit, index);
                 let end_time = Instant::now();
                 time = end_time - start_time;
+                space = if bit { bit_vector.get_size_select_1() } else { bit_vector.get_size_select_0() };
                 result
             },
         }.to_string());

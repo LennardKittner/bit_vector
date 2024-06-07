@@ -1,4 +1,5 @@
 use std::cmp;
+use std::mem::size_of;
 use crate::BitVector;
 
 const MASK_LOOKUP: [u32; 32] = [
@@ -53,6 +54,14 @@ impl RankAccelerator {
             block_size: 0,
             super_block_size: 0,
         }
+    }
+    
+    pub fn get_size(&self) -> usize {
+        self.blocks.capacity() * size_of::<u16>()
+        + self.super_blocks.capacity() * size_of::<usize>()
+        + size_of::<usize>() //block_size
+        + size_of::<usize>() //super_block_size
+        + MASK_LOOKUP.len() * size_of::<u32>()
     }
 
     pub fn init(&mut self, bit_vector: &BitVector) {
