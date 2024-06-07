@@ -1,9 +1,9 @@
-pub fn select_with_table(data: usize, index: usize) -> Option<usize> {
+pub fn select_with_table(bit: bool, data: usize, index: usize) -> Option<usize> {
     //TODO: implement table
     let mut data = data;
     let mut zero_counter = 0;
     for i in 0..64 {
-        if data & 1 == 0 {
+        if data & 1 == if bit { 1 } else { 0 } {
             if zero_counter == index {
                 return Some(i);
             }
@@ -26,7 +26,7 @@ pub mod test {
         for i in 0..64 {
             println!("{i}");
             if data & 1 == 0 {
-                assert_eq!(select_with_table(input, zero_counter), Some(i));
+                assert_eq!(select_with_table(false, input, zero_counter), Some(i));
                 zero_counter += 1;
             }
             data >>= 1;

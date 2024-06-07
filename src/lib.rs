@@ -16,7 +16,8 @@ pub struct BitVector {
 
     rank_accelerator: Option<RankAccelerator>,
 
-    select_accelerator: Option<SelectAccelerator>
+    select_accelerator_0: Option<SelectAccelerator<false>>,
+    select_accelerator_1: Option<SelectAccelerator<true>>
 }
 
 impl BitVector {
@@ -25,7 +26,8 @@ impl BitVector {
             data: Vec::new(),
             len: 0,
             rank_accelerator: None,
-            select_accelerator: None
+            select_accelerator_0: None,
+            select_accelerator_1: None
         }
     }
 
@@ -58,9 +60,12 @@ impl BitVector {
     }
 
     pub fn init_select_structures(&mut self) {
-        let mut select_accelerator = SelectAccelerator::new();
-        select_accelerator.init(self);
-        self.select_accelerator = Some(select_accelerator);
+        let mut select_accelerator_0 = SelectAccelerator::new();
+        select_accelerator_0.init(self);
+        self.select_accelerator_0 = Some(select_accelerator_0);
+        let mut select_accelerator_1 = SelectAccelerator::new();
+        select_accelerator_1.init(self);
+        self.select_accelerator_1 = Some(select_accelerator_1);
     }
 
     // initializes helper data structures
@@ -95,7 +100,11 @@ impl BitVector {
     // get position of index-th 0/1
     #[inline]
     pub fn select(&self, bit: bool, index: usize) -> usize {
-        self.select_accelerator.as_ref().expect("Select acceleration structrues not initialized!").select(bit, index, self)
+        if bit {
+            self.select_accelerator_1.as_ref().expect("Select acceleration structrues not initialized!").select(index)
+        } else {
+            self.select_accelerator_0.as_ref().expect("Select acceleration structrues not initialized!").select(index)
+        }
     }
 }
 
@@ -161,7 +170,7 @@ pub mod test {
                 current_zero += 1;
             }
             if bit_vector.access(i) == 1 {
-                //assert_eq!(bit_vector.select(true, current_one), i);
+                assert_eq!(bit_vector.select(true, current_one), i);
                 current_one += 1;
             }
         }

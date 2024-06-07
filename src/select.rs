@@ -1,51 +1,50 @@
+use std::ops::BitOr;
 use crate::BitVector;
 use crate::select::Block::{LargeBlock, SmallBlock};
 use crate::select::SuperBlock::{LargeSuperBlock, SmallSuperBlock};
 use crate::select_table::select_with_table;
 
-pub struct SelectAccelerator {
+pub struct SelectAccelerator<const BIT: bool> {
     super_block_offsets: Vec<usize>,
-    super_blocks: Vec<SuperBlock>,
+    super_blocks: Vec<SuperBlock<BIT>>,
     zeros_per_super_block: usize,
     zeros_per_block: usize,
     large_super_block_size: usize,
     large_block_size: usize
 }
 
-enum SuperBlock {
+enum SuperBlock<const BIT: bool> {
     LargeSuperBlock{
         select_table: Vec<usize>
     },
     SmallSuperBlock{
         block_offsets: Vec<usize>,
-        blocks: Vec<Block>
+        blocks: Vec<Block<BIT>>
     },
 }
 
-enum Block {
+enum Block<const BIT: bool> {
     LargeBlock{
         select_table: Vec<usize>
     },
-    // Block has size of usize anyway so we can just store the data directly
+    // Block has size of usize anyway, so we can just store the data directly
     SmallBlock{
         data: usize
     }
 }
 
-
-impl SelectAccelerator {
-    
-    pub fn new() -> Self {
+impl<const BIT: bool> SelectAccelerator<BIT> {
+    pub fn new() -> SelectAccelerator<BIT> {
         SelectAccelerator {
             super_block_offsets: Vec::new(),
             super_blocks: Vec::new(),
             zeros_per_super_block: 0,
             zeros_per_block: 0,
             large_super_block_size: 0,
-            large_block_size: 0
+            large_block_size: 0,
         }
     }
-
+    
     pub fn init(&mut self, bit_vector: &BitVector) {
         self.zeros_per_super_block = bit_vector.len().ilog2().pow(2) as usize;
         self.large_super_block_size = self.zeros_per_super_block.pow(2);
@@ -55,7 +54,7 @@ impl SelectAccelerator {
         self.super_block_offsets.push(0);
         let mut zeroes = 0;
         for i in 0..bit_vector.len() {
-            zeroes += 1 - bit_vector.access(i);
+            zeroes += if BIT { bit_vector.access(i) } else { 1 - bit_vector.access(i) };
             if zeroes != self.zeros_per_super_block && i != bit_vector.len()-1 {
                 continue;
             }
@@ -78,7 +77,7 @@ impl SelectAccelerator {
     fn calc_select_table(bit_vector: &BitVector, start_index: usize, end_index: usize) -> Vec<usize> {
         let mut select_table = Vec::new();
         for j in start_index..end_index {
-            if bit_vector.access(j) == 0 {
+            if bit_vector.access(j) == if BIT { 1 } else { 0 } {
                 // store index directly, so we don't have to sum over super blocks
                 select_table.push(j);
             }
@@ -88,19 +87,19 @@ impl SelectAccelerator {
     }
 
     #[inline]
-    fn create_large_super_block(&self, bit_vector: &BitVector, block_index: usize) -> SuperBlock {
+    fn create_large_super_block(&self, bit_vector: &BitVector, block_index: usize) -> SuperBlock<BIT> {
         LargeSuperBlock{ select_table: Self::calc_select_table(bit_vector, self.super_block_offsets[block_index], self.super_block_offsets[block_index+1]) }
     }
 
     #[inline]
-    fn create_small_super_block(&self, bit_vector: &BitVector, block_index: usize) -> SuperBlock {
+    fn create_small_super_block(&self, bit_vector: &BitVector, block_index: usize) -> SuperBlock<BIT> {
         let mut block_offsets = Vec::new();
         let mut blocks = Vec::new();
 
         block_offsets.push(self.super_block_offsets[block_index]);
         let mut zeroes = 0;
         for j in self.super_block_offsets[block_index]..self.super_block_offsets[block_index+1] {
-            zeroes += 1 - bit_vector.access(j);
+            zeroes += if BIT { bit_vector.access(j) } else { 1 - bit_vector.access(j) };
             if zeroes != self.zeros_per_block && j != self.super_block_offsets[block_index+1]-1 {
                 continue;
             }
@@ -125,8 +124,7 @@ impl SelectAccelerator {
     }
 
     #[inline]
-    pub fn select(&self, bit: bool, index: usize, bit_vector: &BitVector) -> usize {
-        //todo: bit = true
+    pub fn select(&self, index: usize) -> usize {
         let super_block_index = index / self.zeros_per_super_block;
         match &self.super_blocks[super_block_index] {
             LargeSuperBlock{ select_table} => select_table[index],
@@ -135,7 +133,7 @@ impl SelectAccelerator {
                 match &blocks[block_index] {
                     LargeBlock{ select_table} => select_table[(index % self.zeros_per_super_block) % self.zeros_per_block],
                     SmallBlock{ data} => block_offsets[block_index]
-                        + select_with_table(*data, (index % self.zeros_per_super_block) % self.zeros_per_block).expect("No ith zero found in block")
+                        + select_with_table(BIT, *data, (index % self.zeros_per_super_block) % self.zeros_per_block).expect("No ith zero/one found in block")
                 }
             },
         }
@@ -164,20 +162,20 @@ pub mod test {
         let mut bit_vector = BitVector::load_from_string(&data);
         bit_vector.init_select_structures();
 
-        let select_accelerator = bit_vector.select_accelerator.as_ref().unwrap();
+        let select_accelerator_0 = bit_vector.select_accelerator_0.as_ref().unwrap();
 
         let mut zeroes = 0;
         let mut super_block_index = 0;
         let mut super_block_start = 0;
         for i in 0..bit_vector.len() {
             zeroes += 1 - bit_vector.access(i);
-            if zeroes != select_accelerator.zeros_per_super_block && i != bit_vector.len()-1 {
+            if zeroes != select_accelerator_0.zeros_per_super_block && i != bit_vector.len()-1 {
                 continue;
             }
-            assert_eq!(select_accelerator.super_block_offsets[super_block_index], super_block_start);
-            if i - super_block_start > select_accelerator.large_super_block_size {
+            assert_eq!(select_accelerator_0.super_block_offsets[super_block_index], super_block_start);
+            if i - super_block_start > select_accelerator_0.large_super_block_size {
                 let mut current_zero = 0;
-                if let SuperBlock::LargeSuperBlock { select_table } = &select_accelerator.super_blocks[super_block_index] {
+                if let SuperBlock::LargeSuperBlock { select_table } = &select_accelerator_0.super_blocks[super_block_index] {
                     for j in super_block_start..i {
                         if bit_vector.access(j) == 0 {
                             assert_eq!(select_table[current_zero], j);
@@ -206,30 +204,30 @@ pub mod test {
         let mut bit_vector = BitVector::load_from_string(&data);
         bit_vector.init_select_structures();
 
-        let select_accelerator = bit_vector.select_accelerator.as_ref().unwrap();
+        let select_accelerator_0 = bit_vector.select_accelerator_0.as_ref().unwrap();
 
         let mut zeroes = 0;
         let mut super_block_index = 0;
         let mut super_block_start = 0;
         for i in 0..bit_vector.len() {
             zeroes += 1 - bit_vector.access(i);
-            if zeroes != select_accelerator.zeros_per_super_block && i != bit_vector.len()-1 {
+            if zeroes != select_accelerator_0.zeros_per_super_block && i != bit_vector.len()-1 {
                 continue;
             }
-            assert_eq!(select_accelerator.super_block_offsets[super_block_index], super_block_start);
-            if i - super_block_start <= select_accelerator.large_super_block_size {
+            assert_eq!(select_accelerator_0.super_block_offsets[super_block_index], super_block_start);
+            if i - super_block_start <= select_accelerator_0.large_super_block_size {
                 let start_next_super_block = i+1;
-                if let SuperBlock::SmallSuperBlock { block_offsets, blocks } = &select_accelerator.super_blocks[super_block_index] {
+                if let SuperBlock::SmallSuperBlock { block_offsets, blocks } = &select_accelerator_0.super_blocks[super_block_index] {
                     let mut block_index = 0;
                     let mut zeroes_in_block = 0;
                     let mut block_start = super_block_start;
                     for j in super_block_start..start_next_super_block {
                         zeroes_in_block += 1 - bit_vector.access(j);
-                        if zeroes_in_block != select_accelerator.zeros_per_block && j != start_next_super_block -1 {
+                        if zeroes_in_block != select_accelerator_0.zeros_per_block && j != start_next_super_block -1 {
                             continue;
                         }
                         assert_eq!(block_offsets[block_index], block_start);
-                        if j - block_start <= select_accelerator.large_block_size {
+                        if j - block_start <= select_accelerator_0.large_block_size {
                             let start_next_block = j+1;
                             match &blocks[block_index] {
                                 Block::LargeBlock { select_table } => {
