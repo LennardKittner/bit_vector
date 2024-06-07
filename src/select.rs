@@ -1,4 +1,3 @@
-use std::ops::BitOr;
 use crate::BitVector;
 use crate::select::Block::{LargeBlock, SmallBlock};
 use crate::select::SuperBlock::{LargeSuperBlock, SmallSuperBlock};

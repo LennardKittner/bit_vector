@@ -1,4 +1,3 @@
-use std::mem::size_of;
 use crate::rank::RankAccelerator;
 use crate::select::SelectAccelerator;
 
@@ -7,8 +6,7 @@ mod select;
 mod select_table;
 
 type Unit = u64;
-const UNIT_SIZE_BITS: usize = size_of::<Unit>()*8;
-const UNIT_SIZE_BYTES: usize = size_of::<Unit>();
+const UNIT_SIZE_BITS: usize = Unit::BITS as usize;
 
 pub struct BitVector {
     data: Vec<Unit>,
@@ -18,6 +16,12 @@ pub struct BitVector {
 
     select_accelerator_0: Option<SelectAccelerator<false>>,
     select_accelerator_1: Option<SelectAccelerator<true>>
+}
+
+impl Default for BitVector {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BitVector {
@@ -100,10 +104,11 @@ impl BitVector {
     // get position of index-th 0/1
     #[inline]
     pub fn select(&self, bit: bool, index: usize) -> usize {
+        // index -1 because select_accelerator is zero based
         if bit {
-            self.select_accelerator_1.as_ref().expect("Select acceleration structrues not initialized!").select(index)
+            self.select_accelerator_1.as_ref().expect("Select acceleration structrues not initialized!").select(index-1)
         } else {
-            self.select_accelerator_0.as_ref().expect("Select acceleration structrues not initialized!").select(index)
+            self.select_accelerator_0.as_ref().expect("Select acceleration structrues not initialized!").select(index-1)
         }
     }
 }
@@ -155,6 +160,7 @@ pub mod test {
                 data += "1";
             }
         }
+        println!("{data}");
         test_select(&data);
     }
     
@@ -166,12 +172,12 @@ pub mod test {
         let mut current_one = 0;
         for i in 0..data.len() {
             if bit_vector.access(i) == 0 {
-                assert_eq!(bit_vector.select(false, current_zero), i);
                 current_zero += 1;
+                assert_eq!(bit_vector.select(false, current_zero), i);
             }
             if bit_vector.access(i) == 1 {
-                assert_eq!(bit_vector.select(true, current_one), i);
                 current_one += 1;
+                assert_eq!(bit_vector.select(true, current_one), i);
             }
         }
     }
