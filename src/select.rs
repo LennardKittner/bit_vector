@@ -5,7 +5,6 @@ use crate::select::SuperBlock::{LargeSuperBlock, SmallSuperBlock};
 use crate::select_table::select_with_table;
 
 pub struct SelectAccelerator<const BIT: bool> {
-    super_block_offsets: Vec<usize>,
     super_blocks: Vec<SuperBlock<BIT>>,
     zeros_per_super_block: usize,
     zeros_per_block: usize,
@@ -36,7 +35,6 @@ enum Block<const BIT: bool> {
 impl<const BIT: bool> SelectAccelerator<BIT> {
     pub fn new() -> SelectAccelerator<BIT> {
         SelectAccelerator {
-            super_block_offsets: Vec::new(),
             super_blocks: Vec::new(),
             zeros_per_super_block: 0,
             zeros_per_block: 0,
@@ -44,24 +42,25 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
             large_block_size: 0,
         }
     }
-    
+
     pub fn get_size(&self) -> usize {
-        self.super_block_offsets.capacity() * size_of::<usize>()
-        + self.super_blocks.capacity() * size_of::<SuperBlock<BIT>>()
+        //TODO: not just use size_of SuperBlock
+        self.super_blocks.capacity() * size_of::<SuperBlock<BIT>>()
         + size_of::<usize>() //zeros_per_super_block
         + size_of::<usize>() //zeros_per_block
         + size_of::<usize>() //large_super_block_size
         + size_of::<usize>() //large_block_size
         //TODO: + select table
     }
-    
+
     pub fn init(&mut self, bit_vector: &BitVector) {
         self.zeros_per_super_block = bit_vector.len().ilog2().pow(2) as usize;
         self.large_super_block_size = self.zeros_per_super_block.pow(2);
         self.large_block_size = bit_vector.len().ilog2() as usize;
         self.zeros_per_block = (self.large_block_size as f64).sqrt() as usize;
-
-        self.super_block_offsets.push(0);
+        let mut current_super_block_offset = 0;
+        let mut next_super_block_offset;
+        
         let mut zeroes = 0;
         for i in 0..bit_vector.len() {
             zeroes += if BIT { bit_vector.access(i) } else { 1 - bit_vector.access(i) };
@@ -69,18 +68,16 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
                 continue;
             }
             zeroes = 0;
-            self.super_block_offsets.push(i+1);
-            let next_block = self.super_block_offsets.len()-1;
-            if self.super_block_offsets[next_block] - self.super_block_offsets[next_block-1] >= self.large_super_block_size {
-                self.super_blocks.push(self.create_large_super_block(bit_vector, next_block-1));
+            next_super_block_offset = i+1;
+            if next_super_block_offset - current_super_block_offset >= self.large_super_block_size {
+                self.super_blocks.push(self.create_large_super_block(bit_vector, current_super_block_offset, next_super_block_offset));
             } else {
-                self.super_blocks.push(self.create_small_super_block(bit_vector, next_block-1));
+                self.super_blocks.push(self.create_small_super_block(bit_vector, current_super_block_offset, next_super_block_offset));
             }
+            current_super_block_offset = next_super_block_offset;
         }
 
         // remove last offset because the last element contains bitvector.len()
-        self.super_block_offsets.pop();
-        self.super_block_offsets.shrink_to_fit();
         self.super_blocks.shrink_to_fit();
     }
 
@@ -89,6 +86,7 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
         for j in start_index..end_index {
             if bit_vector.access(j) == if BIT { 1 } else { 0 } {
                 // store index directly, so we don't have to sum over super blocks
+                // we also don't have to store super block offsets anymore
                 select_table.push(j);
             }
         }
@@ -97,20 +95,20 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
     }
 
     #[inline]
-    fn create_large_super_block(&self, bit_vector: &BitVector, block_index: usize) -> SuperBlock<BIT> {
-        LargeSuperBlock{ select_table: Self::calc_select_table(bit_vector, self.super_block_offsets[block_index], self.super_block_offsets[block_index+1]) }
+    fn create_large_super_block(&self, bit_vector: &BitVector, super_block_start: usize, super_block_end: usize) -> SuperBlock<BIT> {
+        LargeSuperBlock{ select_table: Self::calc_select_table(bit_vector, super_block_start, super_block_end) }
     }
 
     #[inline]
-    fn create_small_super_block(&self, bit_vector: &BitVector, block_index: usize) -> SuperBlock<BIT> {
+    fn create_small_super_block(&self, bit_vector: &BitVector, super_block_start: usize, super_block_end: usize) -> SuperBlock<BIT> {
         let mut block_offsets = Vec::new();
         let mut blocks = Vec::new();
 
-        block_offsets.push(self.super_block_offsets[block_index]);
+        block_offsets.push(super_block_start);
         let mut zeroes = 0;
-        for j in self.super_block_offsets[block_index]..self.super_block_offsets[block_index+1] {
+        for j in super_block_start..super_block_end {
             zeroes += if BIT { bit_vector.access(j) } else { 1 - bit_vector.access(j) };
-            if zeroes != self.zeros_per_block && j != self.super_block_offsets[block_index+1]-1 {
+            if zeroes != self.zeros_per_block && j != super_block_end-1 {
                 continue;
             }
             block_offsets.push(j+1);
@@ -182,7 +180,6 @@ pub mod test {
             if zeroes != select_accelerator_0.zeros_per_super_block && i != bit_vector.len()-1 {
                 continue;
             }
-            assert_eq!(select_accelerator_0.super_block_offsets[super_block_index], super_block_start);
             if i - super_block_start > select_accelerator_0.large_super_block_size {
                 let mut current_zero = 0;
                 if let SuperBlock::LargeSuperBlock { select_table } = &select_accelerator_0.super_blocks[super_block_index] {
@@ -224,7 +221,6 @@ pub mod test {
             if zeroes != select_accelerator_0.zeros_per_super_block && i != bit_vector.len()-1 {
                 continue;
             }
-            assert_eq!(select_accelerator_0.super_block_offsets[super_block_index], super_block_start);
             if i - super_block_start <= select_accelerator_0.large_super_block_size {
                 let start_next_super_block = i+1;
                 if let SuperBlock::SmallSuperBlock { block_offsets, blocks } = &select_accelerator_0.super_blocks[super_block_index] {
