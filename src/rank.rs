@@ -22,10 +22,9 @@ impl RankAccelerator {
     }
     
     pub fn get_size(&self) -> usize {
-        self.blocks.capacity() * size_of::<u16>()
+        size_of::<RankAccelerator>()
+        + self.blocks.capacity() * size_of::<u16>()
         + self.super_blocks.capacity() * size_of::<usize>()
-        + size_of::<usize>() //block_size
-        + size_of::<usize>() //super_block_size
     }
 
     pub fn init(&mut self, bit_vector: &BitVector) {
@@ -71,6 +70,7 @@ impl RankAccelerator {
 
     #[inline]
     fn get_ones(block: u32, index: usize) -> usize {
+        // we don't need a lookup table
         let mask = (1 << index) - 1;
         let block = block & mask;
         block.count_ones() as usize
