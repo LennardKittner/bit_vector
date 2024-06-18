@@ -1,5 +1,5 @@
 use std::cmp::min;
-use std::mem::size_of;
+use std::mem::{align_of, ManuallyDrop, size_of};
 use crate::BitVector;
 use crate::select::Block::{LargeBlock, SmallBlock};
 use crate::select::SuperBlock::{LargeSuperBlock, SmallSuperBlock};
@@ -13,7 +13,38 @@ pub struct SelectAccelerator<const BIT: bool> {
     large_block_size: usize
 }
 
-enum SuperBlock<const BIT: bool> {
+// The block and super block types are smaller but the alignment will increase the effective size to the same as the enums.
+// #[repr(u8)]
+// enum BlockType {
+//     Large = 1,
+//     Small = 2,
+// }
+//
+// #[repr(C)]
+// union SuperBlockData<const BIT: bool> {
+//     select_table: ManuallyDrop<Vec<usize>>,
+//     blocks: ManuallyDrop<Vec<Block<BIT>>>,
+// }
+//
+// #[repr(packed)]
+// struct SuperBlock<const BIT: bool> { // Size 25
+//     t: BlockType,
+//     d: SuperBlockData<BIT>,
+// }
+//
+// #[repr(C)]
+// union BlockData<const BIT: bool> {
+//     select_table: ManuallyDrop<Box<Vec<usize>>>,
+//     offset: usize,
+// }
+//
+// #[repr(packed)]
+// struct Block<const BIT: bool> { // Size 9
+//     t: BlockType,
+//     d: BlockData<BIT>,
+// }
+
+enum SuperBlock<const BIT: bool> { // Size 32
     LargeSuperBlock{
         select_table: Vec<usize>
     },
@@ -31,9 +62,10 @@ impl<const BIT: bool> SuperBlock<BIT> {
     }
 }
 
-enum Block<const BIT: bool> {
+enum Block<const BIT: bool> { // Size 16
     LargeBlock{
-        select_table: Vec<usize>
+        // The size of the enum is dedicated by the largest variant using Box makes the variant smaller
+        select_table: Box<Vec<usize>>
     },
     // Block has size of usize anyway, so we can just store the offset directly
     SmallBlock{
@@ -44,7 +76,7 @@ enum Block<const BIT: bool> {
 impl<const BIT: bool> Block<BIT> {
     fn get_size(&self) -> usize {
         match self {
-            LargeBlock { select_table } => size_of::<Block<BIT>>() + select_table.capacity() * size_of::<usize>(),
+            LargeBlock { select_table } => size_of::<Block<BIT>>() + size_of::<Vec<usize>>() + select_table.capacity() * size_of::<usize>(),
             SmallBlock { .. } => size_of::<Block<BIT>>(),
         }
     }
@@ -128,7 +160,7 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
             next_block_offset = j+1;
             if next_block_offset - current_block_offset >= self.large_block_size {
                 // large block
-                blocks.push(LargeBlock { select_table:  Self::calc_select_table(bit_vector, current_block_offset, next_block_offset) });
+                blocks.push(LargeBlock { select_table:  Box::new(Self::calc_select_table(bit_vector, current_block_offset, next_block_offset)) });
             } else {
                 // small block
                 blocks.push(SmallBlock { offset: current_block_offset });
@@ -144,7 +176,7 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
     
     pub fn read_small_block(&self, offset: usize, bit_vector: &BitVector) -> usize {
         let mut data = 0;
-         for k in offset..min(offset + self.large_block_size, bit_vector.len()) { 
+         for k in offset..min(offset + self.large_block_size, bit_vector.len()) {
                 data |= bit_vector.access(k) << (k - offset);
         }
         data
