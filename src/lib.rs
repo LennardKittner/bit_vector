@@ -6,7 +6,17 @@ mod rank;
 mod select;
 mod select_table;
 
+#[cfg(feature = "UNIT_U8")]
+type Unit = u8;
+#[cfg(feature = "UNIT_U16")]
+type Unit = u16;
+#[cfg(feature = "UNIT_U32")]
+type Unit = u32;
+#[cfg(feature = "UNIT_U64")]
 type Unit = u64;
+#[cfg(feature = "UNIT_USIZE")]
+type Unit = usize;
+
 const UNIT_SIZE_BITS: usize = Unit::BITS as usize;
 
 pub struct BitVector {
@@ -124,7 +134,7 @@ impl BitVector {
         let upper = self.data[vec_index+1] << (UNIT_SIZE_BITS - shift);
         lower | upper
     }
-    
+
     #[inline]
     pub fn count_ones(&self, range: Range<usize>) -> usize {
         let mut result = 0;

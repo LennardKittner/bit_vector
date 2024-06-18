@@ -6,8 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 USE_SELECT_TABLE = []
-
-default = ["USE_SELECT_TABLE"]
+UNIT_U8 = []
+UNIT_U16 = []
+UNIT_U32 = []
+UNIT_U64 = []
+UNIT_USIZE = []
+default = ["UNIT_USIZE", "USE_SELECT_TABLE"]
 
 [dependencies]
 
