@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::mem::size_of;
 use crate::BitVector;
 use crate::select::Block::{LargeBlock, SmallBlock};
@@ -17,18 +18,35 @@ enum SuperBlock<const BIT: bool> {
         select_table: Vec<usize>
     },
     SmallSuperBlock{
-        block_offsets: Vec<usize>,
         blocks: Vec<Block<BIT>>
     },
+}
+
+impl<const BIT: bool> SuperBlock<BIT> {
+    fn get_size(&self) -> usize {
+        match self {
+            LargeSuperBlock { select_table } => size_of::<SuperBlock<BIT>>() + select_table.capacity() * size_of::<usize>(),
+            SmallSuperBlock { blocks } => size_of::<SuperBlock<BIT>>() + blocks.iter().map(Block::get_size).sum::<usize>()
+        }
+    }
 }
 
 enum Block<const BIT: bool> {
     LargeBlock{
         select_table: Vec<usize>
     },
-    // Block has size of usize anyway, so we can just store the data directly
+    // Block has size of usize anyway, so we can just store the offset directly
     SmallBlock{
-        data: usize
+        offset: usize,
+    }
+}
+
+impl<const BIT: bool> Block<BIT> {
+    fn get_size(&self) -> usize {
+        match self {
+            LargeBlock { select_table } => size_of::<Block<BIT>>() + select_table.capacity() * size_of::<usize>(),
+            SmallBlock { .. } => size_of::<Block<BIT>>(),
+        }
     }
 }
 
@@ -44,12 +62,8 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
     }
 
     pub fn get_size(&self) -> usize {
-        //TODO: not just use size_of SuperBlock
-        self.super_blocks.capacity() * size_of::<SuperBlock<BIT>>()
-        + size_of::<usize>() //zeros_per_super_block
-        + size_of::<usize>() //zeros_per_block
-        + size_of::<usize>() //large_super_block_size
-        + size_of::<usize>() //large_block_size
+        size_of::<SelectAccelerator<BIT>>()
+        + self.super_blocks.iter().map(SuperBlock::get_size).sum::<usize>()
         //TODO: + select table
     }
 
@@ -60,7 +74,7 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
         self.zeros_per_block = (self.large_block_size as f64).sqrt() as usize;
         let mut current_super_block_offset = 0;
         let mut next_super_block_offset;
-        
+
         let mut zeroes = 0;
         for i in 0..bit_vector.len() {
             zeroes += if BIT { bit_vector.access(i) } else { 1 - bit_vector.access(i) };
@@ -77,7 +91,7 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
             current_super_block_offset = next_super_block_offset;
         }
 
-        // remove last offset because the last element contains bitvector.len()
+        // This is faster than calculating the size of super_blocks in advance
         self.super_blocks.shrink_to_fit();
     }
 
@@ -101,47 +115,54 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
 
     #[inline]
     fn create_small_super_block(&self, bit_vector: &BitVector, super_block_start: usize, super_block_end: usize) -> SuperBlock<BIT> {
-        let mut block_offsets = Vec::new();
         let mut blocks = Vec::new();
+        let mut current_block_offset = super_block_start;
+        let mut next_block_offset;
 
-        block_offsets.push(super_block_start);
         let mut zeroes = 0;
         for j in super_block_start..super_block_end {
             zeroes += if BIT { bit_vector.access(j) } else { 1 - bit_vector.access(j) };
             if zeroes != self.zeros_per_block && j != super_block_end-1 {
                 continue;
             }
-            block_offsets.push(j+1);
-            let next_block = block_offsets.len()-1;
-            if block_offsets[next_block] - block_offsets[next_block - 1] >= self.large_block_size {
+            next_block_offset = j+1;
+            if next_block_offset - current_block_offset >= self.large_block_size {
                 // large block
-                blocks.push(LargeBlock { select_table:  Self::calc_select_table(bit_vector, block_offsets[next_block - 1], block_offsets[next_block]) });
+                blocks.push(LargeBlock { select_table:  Self::calc_select_table(bit_vector, current_block_offset, next_block_offset) });
             } else {
                 // small block
-                let mut data = 0;
-                for k in block_offsets[next_block-1]..block_offsets[next_block] {
-                    data |= bit_vector.access(k) << (k - block_offsets[next_block-1]);
-                }
-                blocks.push(SmallBlock { data });
+                blocks.push(SmallBlock { offset: current_block_offset });
             }
             zeroes = 0;
+            current_block_offset = next_block_offset;
         }
+
         // remove last index which points to the next super block offset
-        block_offsets.pop();
-        SmallSuperBlock { block_offsets, blocks }
+        blocks.shrink_to_fit();
+        SmallSuperBlock { blocks }
+    }
+    
+    pub fn read_small_block(&self, offset: usize, bit_vector: &BitVector) -> usize {
+        let mut data = 0;
+         for k in offset..min(offset + self.large_block_size, bit_vector.len()) { 
+                data |= bit_vector.access(k) << (k - offset);
+        }
+        data
     }
 
     #[inline]
-    pub fn select(&self, index: usize) -> usize {
+    pub fn select(&self, index: usize, bit_vector: &BitVector) -> usize {
         let super_block_index = index / self.zeros_per_super_block;
         match &self.super_blocks[super_block_index] {
             LargeSuperBlock{ select_table} => select_table[index],
-            SmallSuperBlock{ block_offsets, blocks } => {
+            SmallSuperBlock{ blocks } => {
                 let block_index = (index % self.zeros_per_super_block) / self.zeros_per_block;
                 match &blocks[block_index] {
                     LargeBlock{ select_table} => select_table[(index % self.zeros_per_super_block) % self.zeros_per_block],
-                    SmallBlock{ data} => block_offsets[block_index]
-                        + select_with_table(BIT, *data, (index % self.zeros_per_super_block) % self.zeros_per_block).expect("No ith zero/one found in block")
+                    SmallBlock{ offset} => {
+                        offset
+                            + select_with_table(BIT, self.read_small_block(*offset, bit_vector), (index % self.zeros_per_super_block) % self.zeros_per_block).expect("No ith zero/one found in block")
+                    }
                 }
             },
         }
@@ -223,7 +244,7 @@ pub mod test {
             }
             if i - super_block_start <= select_accelerator_0.large_super_block_size {
                 let start_next_super_block = i+1;
-                if let SuperBlock::SmallSuperBlock { block_offsets, blocks } = &select_accelerator_0.super_blocks[super_block_index] {
+                if let SuperBlock::SmallSuperBlock { blocks } = &select_accelerator_0.super_blocks[super_block_index] {
                     let mut block_index = 0;
                     let mut zeroes_in_block = 0;
                     let mut block_start = super_block_start;
@@ -232,7 +253,6 @@ pub mod test {
                         if zeroes_in_block != select_accelerator_0.zeros_per_block && j != start_next_super_block -1 {
                             continue;
                         }
-                        assert_eq!(block_offsets[block_index], block_start);
                         if j - block_start <= select_accelerator_0.large_block_size {
                             let start_next_block = j+1;
                             match &blocks[block_index] {
@@ -245,12 +265,8 @@ pub mod test {
                                         }
                                     }
                                 },
-                                Block::SmallBlock { data } => {
-                                    let mut tmp = 0;
-                                    for k in block_start..start_next_block {
-                                        tmp |= bit_vector.access(k) << (k - block_start);
-                                    }
-                                    assert_eq!(data, &tmp)
+                                Block::SmallBlock { offset } => {
+                                    assert_eq!(*offset, block_start);
                                 }
                             }
                         }
