@@ -173,14 +173,6 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
         blocks.shrink_to_fit();
         SmallSuperBlock { blocks }
     }
-    
-    pub fn read_small_block(&self, offset: usize, bit_vector: &BitVector) -> usize {
-        let mut data = 0;
-         for k in offset..min(offset + self.large_block_size, bit_vector.len()) {
-                data |= bit_vector.access(k) << (k - offset);
-        }
-        data
-    }
 
     #[inline]
     pub fn select(&self, index: usize, bit_vector: &BitVector) -> usize {
@@ -193,7 +185,7 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
                     LargeBlock{ select_table} => select_table[(index % self.zeros_per_super_block) % self.zeros_per_block],
                     SmallBlock{ offset} => {
                         offset
-                            + select_with_table(BIT, self.read_small_block(*offset, bit_vector), (index % self.zeros_per_super_block) % self.zeros_per_block).expect("No ith zero/one found in block")
+                            + select_with_table(BIT, bit_vector.access_block(*offset) as usize, (index % self.zeros_per_super_block) % self.zeros_per_block).expect("No ith zero/one found in block")
                     }
                 }
             },
