@@ -1,5 +1,5 @@
 use std::cmp::min;
-use std::mem::{align_of, ManuallyDrop, size_of};
+use std::mem::size_of;
 use crate::BitVector;
 use crate::select::Block::{LargeBlock, SmallBlock};
 use crate::select::SuperBlock::{LargeSuperBlock, SmallSuperBlock};
@@ -64,7 +64,7 @@ impl<const BIT: bool> SuperBlock<BIT> {
 
 enum Block<const BIT: bool> { // Size 16
     LargeBlock{
-        // The size of the enum is dedicated by the largest variant using Box makes the variant smaller
+        // The size of the enum is dictated by the largest variant using Box makes the variant smaller
         select_table: Box<Vec<usize>>
     },
     // Block has size of usize anyway, so we can just store the offset directly
