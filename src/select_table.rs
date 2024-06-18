@@ -24,7 +24,6 @@ pub mod test {
         let mut data = input;
         let mut zero_counter = 0;
         for i in 0..64 {
-            println!("{i}");
             if data & 1 == 0 {
                 assert_eq!(select_with_table(false, input, zero_counter), Some(i));
                 zero_counter += 1;
