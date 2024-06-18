@@ -112,7 +112,7 @@ impl BitVector {
 
         ((self.data[vec_index] >> unit_index) & 1) as usize
     }
-    
+
     #[inline]
     pub fn access_block(&self, index: usize) -> Unit {
         let vec_index = index / UNIT_SIZE_BITS;

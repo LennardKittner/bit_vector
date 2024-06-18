@@ -94,9 +94,13 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
     }
 
     pub fn get_size(&self) -> usize {
+        let mut table_space = 0;
+        #[cfg(feature = "USE_SELECT_TABLE")] {
+            table_space = 2 * size_of::<[[u8; 8]; 256]>();
+        }
         size_of::<SelectAccelerator<BIT>>()
         + self.super_blocks.iter().map(SuperBlock::get_size).sum::<usize>()
-        //TODO: + select table
+        + table_space
     }
 
     pub fn init(&mut self, bit_vector: &BitVector) {
