@@ -37,44 +37,23 @@ fn main() {
 
     let (mut bit_vector, commands) = parse_input(path_in);
 
+    let start_time = Instant::now();
     bit_vector.init();
 
     let mut results = Vec::new();
 
     for command in commands {
-        let time;
-        let mut space = 0;
         results.push(match command {
-            Access {index} => {
-                let start_time = Instant::now();
-                let result = bit_vector.access(index);
-                let end_time = Instant::now();
-                time = end_time - start_time;
-                space = 0;
-                result
-            }
-            Rank {bit , index} => {
-                let start_time = Instant::now();
-                let result = bit_vector.rank(bit, index);
-                let end_time = Instant::now();
-                time = end_time - start_time;
-                space = bit_vector.get_size_rank();
-                result
-            },
-            Select {bit, index} => {
-                let start_time = Instant::now();
-                let result = bit_vector.select(bit, index);
-                let end_time = Instant::now();
-                time = end_time - start_time;
-                space = if bit { bit_vector.get_size_select_1() } else { bit_vector.get_size_select_0() };
-                result
-            },
-        }.to_string());
-        println!("RESULT name={NAME} time={} space={space}", time.as_millis())
+            Access {index} => bit_vector.access(index),
+            Rank {bit , index} => bit_vector.rank(bit, index),
+            Select {bit, index} => bit_vector.select(bit, index),
+        });
     }
+    let end_time = Instant::now();
 
+    println!("RESULT name={NAME} time={} space={}", (end_time - start_time).as_millis(), bit_vector.get_size());
     let mut file_out = File::create(path_out).unwrap();
-    let out = results.join("\n");
+    let out = results.iter().map(|n| n.to_string()).collect::<Vec<String>>().join("\n");
     file_out.write_all(out.as_bytes()).expect("Failed to write output file");
 }
 

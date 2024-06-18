@@ -34,6 +34,10 @@ impl BitVector {
             select_accelerator_1: None
         }
     }
+    
+    pub fn get_size(&self) -> usize {
+        self.get_size_rank() + self.get_size_select_0() + self.get_size_select_1()
+    }
 
     pub fn get_size_rank(&self) -> usize {
         self.rank_accelerator.as_ref().expect("Rank acceleration structures not initialized!").get_size()
@@ -119,9 +123,9 @@ impl BitVector {
     pub fn select(&self, bit: bool, index: usize) -> usize {
         // index -1 because select_accelerator is zero based
         if bit {
-            self.select_accelerator_1.as_ref().expect("Select acceleration structures not initialized!").select(index-1)
+            self.select_accelerator_1.as_ref().expect("Select acceleration structures not initialized!").select(index-1, self)
         } else {
-            self.select_accelerator_0.as_ref().expect("Select acceleration structures not initialized!").select(index-1)
+            self.select_accelerator_0.as_ref().expect("Select acceleration structures not initialized!").select(index-1, self)
         }
     }
 }
@@ -166,14 +170,13 @@ pub mod test {
     fn test_select_large() {
         let mut data = String::new();
         let mut rng = ChaCha8Rng::seed_from_u64(1234567);
-        for _ in 0..4096 {
+        for _ in 0..524288 { //524288
             if rng.gen_range(0..=1) == 0 {
                 data += "0";
             } else {
                 data += "1";
             }
         }
-        println!("{data}");
         test_select(&data);
     }
     
@@ -190,7 +193,8 @@ pub mod test {
             }
             if bit_vector.access(i) == 1 {
                 current_one += 1;
-                assert_eq!(bit_vector.select(true, current_one), i);
+                let result = bit_vector.select(true, current_one);
+                assert_eq!(result, i);
             }
         }
     }
