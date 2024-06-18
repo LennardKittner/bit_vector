@@ -1,3 +1,4 @@
+use std::ops::Range;
 use crate::rank::RankAccelerator;
 use crate::select::SelectAccelerator;
 
@@ -111,6 +112,36 @@ impl BitVector {
 
         ((self.data[vec_index] >> unit_index) & 1) as usize
     }
+    
+    #[inline]
+    pub fn access_block(&self, index: usize) -> Unit {
+        let vec_index = index / UNIT_SIZE_BITS;
+        let shift = index % UNIT_SIZE_BITS;
+        let lower = self.data[vec_index] >> shift;
+        if vec_index == self.data.len()-1 || shift == 0 {
+            return lower;
+        }
+        let upper = self.data[vec_index+1] << (UNIT_SIZE_BITS - shift);
+        lower | upper
+    }
+    
+    #[inline]
+    pub fn count_ones(&self, range: Range<usize>) -> usize {
+        let mut result = 0;
+        let blocks: Vec<Unit> = range.clone().step_by(UNIT_SIZE_BITS).map(|i| self.access_block(i)).collect();
+
+        for block in blocks.iter().take(blocks.len() - 1) {
+            result += block.count_ones() as usize;
+        }
+        let mask = if (range.end - range.start) % UNIT_SIZE_BITS == 0 {
+            0
+        } else {
+            (1 << ((range.end - range.start) % UNIT_SIZE_BITS)) - 1
+        };
+        let last_block = blocks.last().unwrap();
+        let remaining = (last_block & mask).count_ones() as usize;
+        result + remaining
+    }
 
     // get number of 0/1 before index
     #[inline]
@@ -132,10 +163,11 @@ impl BitVector {
 
 #[cfg(test)]
 pub mod test {
+    use std::cmp::min;
     use rand::Rng;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
-    use crate::BitVector;
+    use crate::{BitVector, UNIT_SIZE_BITS};
 
     #[test]
     fn test_load_from_string_and_access() {
@@ -154,6 +186,7 @@ pub mod test {
         bit_vector.init_rank_structures();
         let mut sum = 0;
         for i in 0..data.len() {
+            println!("{i}");
             assert_eq!(bit_vector.rank(true, i), sum);
             assert_eq!(bit_vector.rank(false, i), i - sum);
             sum += bit_vector.access(i);
@@ -197,5 +230,31 @@ pub mod test {
                 assert_eq!(result, i);
             }
         }
+    }
+
+    #[test]
+    fn test_access_block() {
+        let data = "010010001010100001111010101011111001000010111000111000110101010011010100101010111110000110101101010101111101010101110000111011100110110101110101111";
+        let mut bit_vector = BitVector::load_from_string(data);
+        for i in 0..data.len() {
+            let mut data = 0;
+            for j in i..min(UNIT_SIZE_BITS + i, bit_vector.len) {
+                data |= bit_vector.access_block(j) << (j - i);
+            }
+            assert_eq!(data, bit_vector.access_block(i));
+        }
+    }
+
+    #[test]
+    fn test_count_ones() {
+        let data = "010010001010100001111010101011111001000010111000111000110101010011010100101010111110000110101101010101111101010101110000111011100110110101110101111";
+        let bit_vector = BitVector::load_from_string(data);
+        let start = 0;
+        let end = 9;
+        let mut zeroes = 0;
+        for i in start.. end {
+            zeroes += bit_vector.access(i);
+        }
+        assert_eq!(zeroes, bit_vector.count_ones(start..end));
     }
 }

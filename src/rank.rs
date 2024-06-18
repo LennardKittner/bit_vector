@@ -28,41 +28,29 @@ impl RankAccelerator {
     }
 
     pub fn init(&mut self, bit_vector: &BitVector) {
-        //TODO: maybe size optimization
-        //TODO: maybe avoid access
         self.block_size = cmp::max(((bit_vector.len() as f64).log2() / 2f64) as usize, 1);
         self.super_block_size = self.block_size.pow(2);
 
         // generate super blocks
         self.super_blocks.reserve_exact(bit_vector.len() / self.super_block_size);
-        let mut block_0 = 0;
-        for current_bit in 0..self.super_block_size {
-            block_0 += bit_vector.access(current_bit);
-        }
+        let block_0 = bit_vector.count_ones(0..self.super_block_size);
         self.super_blocks.push(block_0);
 
         for current_super_block in 1..(bit_vector.len() / self.super_block_size) {
             let mut block = self.super_blocks[current_super_block - 1];
-            for current_bit in (current_super_block * self.super_block_size)..((current_super_block + 1) * self.super_block_size) {
-                block += bit_vector.access(current_bit);
-            }
+            block += bit_vector.count_ones((current_super_block * self.super_block_size)..((current_super_block + 1) * self.super_block_size));
             self.super_blocks.push(block);
         }
 
         // generate blocks
         self.blocks.reserve_exact(bit_vector.len() / self.block_size);
         for current_super_block in 0..(bit_vector.len() / self.super_block_size) {
-            let mut block_0 = 0;
-            for i in (current_super_block * self.super_block_size)..(current_super_block * self.super_block_size + self.block_size) {
-                block_0 += bit_vector.access(i);
-            }
+            let block_0 = bit_vector.count_ones((current_super_block * self.super_block_size)..(current_super_block * self.super_block_size + self.block_size));
             self.blocks.push(block_0 as u16);
 
             for current_block in 1..self.block_size {
                 let mut block = self.blocks[self.block_size * current_super_block + current_block - 1] as usize;
-                for current_bit in (current_super_block * self.super_block_size + current_block * self.block_size)..(current_super_block * self.super_block_size + (current_block + 1) * self.block_size) {
-                    block += bit_vector.access(current_bit);
-                }
+                block += bit_vector.count_ones((current_super_block * self.super_block_size + current_block * self.block_size)..(current_super_block * self.super_block_size + (current_block + 1) * self.block_size));
                 self.blocks.push(block as u16);
             }
         }
@@ -76,25 +64,15 @@ impl RankAccelerator {
         block.count_ones() as usize
     }
 
-    #[inline]
-    fn get_block(&self, index: usize, bit_vector: &BitVector) -> u32 {
-        //TODO: avoid access
-        let pos = (index / self.block_size) * self.block_size;
-
-        let mut result = 0;
-        for i in pos..(pos + self.block_size) {
-            result |= bit_vector.access(i) << (i - pos)
-        }
-        result as u32
-    }
-
     pub fn rank(&self, bit: bool, index: usize, bit_vector: &BitVector) -> usize {
         let super_block = index / self.super_block_size;
         let block = index / self.block_size;
+        let block_start = (index / self.block_size) * self.block_size;
 
         let result1 = self.super_blocks.get(super_block.wrapping_sub(1)).unwrap_or(&0);
         let result2 = if block % (self.super_block_size / self.block_size) == 0 { 0 } else { self.blocks[block - 1] as usize };
-        let result3 = Self::get_ones(self.get_block(index, bit_vector), index % self.block_size);
+        let result3 = Self::get_ones(bit_vector.access_block(block_start) as u32, index % self.block_size);
+
         let result = result1 + result2 + result3;
 
         if bit { result } else { index - result }
