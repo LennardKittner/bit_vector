@@ -199,7 +199,7 @@ pub mod test {
     fn test_rank_large() {
         let mut data = String::new();
         let mut rng = ChaCha8Rng::seed_from_u64(1234567);
-        for _ in 0..1024 {
+        for _ in 0..524288 {
             if rng.gen_range(0..=1) == 0 {
                 data += "0";
             } else {
@@ -214,7 +214,6 @@ pub mod test {
         bit_vector.init_rank_structures();
         let mut sum = 0;
         for i in 0..data.len() {
-            println!("{i} {sum}");
             assert_eq!(bit_vector.rank(true, i), sum);
             assert_eq!(bit_vector.rank(false, i), i - sum);
             sum += bit_vector.access(i);
