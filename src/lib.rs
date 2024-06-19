@@ -120,7 +120,7 @@ impl BitVector {
         let vec_index = index / UNIT_SIZE_BITS;
         let unit_index = index % UNIT_SIZE_BITS;
 
-        ((self.data[vec_index] >> unit_index) & 1) as usize
+        (self.data[vec_index] >> unit_index) & 1
     }
 
     #[inline]
@@ -190,13 +190,31 @@ pub mod test {
     }
 
     #[test]
-    fn test_rank() {
+    fn test_rank_small() {
         let data = "010010001010100001111010101011111001000010111000111000110101010011010100101010111110000110101101010101111101010101110000111011100110110101110101111";
+        test_rank(data);
+    }
+
+    #[test]
+    fn test_rank_large() {
+        let mut data = String::new();
+        let mut rng = ChaCha8Rng::seed_from_u64(1234567);
+        for _ in 0..1024 {
+            if rng.gen_range(0..=1) == 0 {
+                data += "0";
+            } else {
+                data += "1";
+            }
+        }
+        test_rank(&data);
+    }
+
+    fn test_rank(data: &str) {
         let mut bit_vector = BitVector::load_from_string(data);
         bit_vector.init_rank_structures();
         let mut sum = 0;
         for i in 0..data.len() {
-            println!("{i}");
+            println!("{i} {sum}");
             assert_eq!(bit_vector.rank(true, i), sum);
             assert_eq!(bit_vector.rank(false, i), i - sum);
             sum += bit_vector.access(i);

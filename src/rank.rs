@@ -1,4 +1,5 @@
 use std::cmp;
+use std::cmp::min;
 use std::mem::size_of;
 use crate::BitVector;
 
@@ -32,25 +33,33 @@ impl RankAccelerator {
         self.super_block_size = self.block_size.pow(2);
 
         // generate super blocks
-        self.super_blocks.reserve_exact(bit_vector.len() / self.super_block_size);
-        let block_0 = bit_vector.count_ones(0..self.super_block_size);
-        self.super_blocks.push(block_0);
+        self.super_blocks.reserve_exact(bit_vector.len().div_ceil(self.super_block_size));
+        let num_ones_until_enf_of_block_0 = bit_vector.count_ones(0..self.super_block_size);
+        self.super_blocks.push(num_ones_until_enf_of_block_0);
 
-        for current_super_block in 1..(bit_vector.len() / self.super_block_size) {
-            let mut block = self.super_blocks[current_super_block - 1];
-            block += bit_vector.count_ones((current_super_block * self.super_block_size)..((current_super_block + 1) * self.super_block_size));
-            self.super_blocks.push(block);
+        for current_super_block in 1..bit_vector.len().div_ceil(self.super_block_size) {
+            let mut num_ones_until_end_of_block = self.super_blocks[current_super_block - 1];
+            let super_block_start = current_super_block * self.super_block_size;
+            let super_block_end = min((current_super_block + 1) * self.super_block_size, bit_vector.len());
+            num_ones_until_end_of_block += bit_vector.count_ones(super_block_start..super_block_end);
+            self.super_blocks.push(num_ones_until_end_of_block);
         }
 
         // generate blocks
-        self.blocks.reserve_exact(bit_vector.len() / self.block_size);
-        for current_super_block in 0..(bit_vector.len() / self.super_block_size) {
-            let block_0 = bit_vector.count_ones((current_super_block * self.super_block_size)..(current_super_block * self.super_block_size + self.block_size));
-            self.blocks.push(block_0 as u16);
+        self.blocks.reserve_exact(bit_vector.len().div_ceil(self.block_size));
+        for current_super_block in 0..bit_vector.len().div_ceil(self.super_block_size) {
+            let num_ones_until_enf_of_block_0 = bit_vector.count_ones((current_super_block * self.super_block_size)..min(current_super_block * self.super_block_size + self.block_size, bit_vector.len()));
+            self.blocks.push(num_ones_until_enf_of_block_0 as u16);
 
             for current_block in 1..self.block_size {
+                let block_start = current_super_block * self.super_block_size + current_block * self.block_size;
+                let block_end = min(current_super_block * self.super_block_size + (current_block + 1) * self.block_size, bit_vector.len());
+                if block_start >= bit_vector.len() {
+                    // Happens only if the last super block is smaller than super_block_size
+                    break;
+                }
                 let mut block = self.blocks[self.block_size * current_super_block + current_block - 1] as usize;
-                block += bit_vector.count_ones((current_super_block * self.super_block_size + current_block * self.block_size)..(current_super_block * self.super_block_size + (current_block + 1) * self.block_size));
+                block += bit_vector.count_ones(block_start..block_end);
                 self.blocks.push(block as u16);
             }
         }
@@ -93,6 +102,9 @@ pub mod test {
         for (i, super_block) in rank_accelerator.super_blocks.iter().enumerate() {
             let mut sum = 0;
             for current_bit in 0..((i+1) * rank_accelerator.super_block_size) {
+                if current_bit >= bit_vector.len() {
+                    break;
+                }
                 sum += bit_vector.access(current_bit);
             }
             assert_eq!(&sum, super_block);
@@ -103,6 +115,9 @@ pub mod test {
             let current_block = i % rank_accelerator.block_size;
             let mut sum = 0;
             for current_bit in (current_super_block * rank_accelerator.super_block_size)..(current_super_block * rank_accelerator.super_block_size + (current_block+1) * rank_accelerator.block_size) {
+                if current_bit >= bit_vector.len() {
+                    break;
+                }
                 sum += bit_vector.access(current_bit);
             }
             assert_eq!(sum, *block as usize, "current_super_block: {current_super_block}, current_block: {current_block}");
