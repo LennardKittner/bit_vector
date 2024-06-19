@@ -263,7 +263,7 @@ pub mod test {
     #[test]
     fn test_access_block() {
         let data = "010010001010100001111010101011111001000010111000111000110101010011010100101010111110000110101101010101111101010101110000111011100110110101110101111";
-        let mut bit_vector = BitVector::load_from_string(data);
+        let bit_vector = BitVector::load_from_string(data);
         for i in 0..data.len() {
             let mut data = 0;
             for j in i..min(UNIT_SIZE_BITS + i, bit_vector.len) {

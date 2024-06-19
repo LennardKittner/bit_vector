@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::mem::size_of;
 use crate::BitVector;
 use crate::select::Block::{LargeBlock, SmallBlock};
@@ -65,6 +64,7 @@ impl<const BIT: bool> SuperBlock<BIT> {
 enum Block<const BIT: bool> { // Size 16
     LargeBlock{
         // The size of the enum is dictated by the largest variant using Box makes the variant smaller
+        #[allow(clippy::box_collection)]
         select_table: Box<Vec<usize>>
     },
     // Block has size of usize anyway, so we can just store the offset directly
@@ -94,6 +94,7 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
     }
 
     pub fn get_size(&self) -> usize {
+        #[allow(unused_assignments)]
         let mut table_space = 0;
         #[cfg(feature = "USE_SELECT_TABLE")] {
             table_space = 2 * size_of::<[[u8; 8]; 256]>();
@@ -189,7 +190,7 @@ impl<const BIT: bool> SelectAccelerator<BIT> {
                     LargeBlock{ select_table} => select_table[(index % self.zeros_per_super_block) % self.zeros_per_block],
                     SmallBlock{ offset} => {
                         offset
-                            + select_with_table(BIT, bit_vector.access_block(*offset) as usize, (index % self.zeros_per_super_block) % self.zeros_per_block).expect("No ith zero/one found in block")
+                            + select_with_table(BIT, bit_vector.access_block(*offset), (index % self.zeros_per_super_block) % self.zeros_per_block).expect("No ith zero/one found in block")
                     }
                 }
             },

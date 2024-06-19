@@ -32,16 +32,18 @@ pub fn select_with_table(bit: bool, data: usize, index: usize) -> Option<usize> 
     generate_table_helper(bit, data, index)
 }
 
+#[allow(dead_code)]
 fn generate_table(bit: bool) -> [[u8; 8]; 256] {
     let mut table: [[u8; 8]; 256] = [[0; 8]; 256];
-    for i in 0..256 {
+    for (i, data_entry) in table.iter_mut().enumerate() {
         for j in 0..8 {
-            table[i][j] = select_with_table(bit, i, j).unwrap_or(0xFF) as u8;
+            data_entry[j] = select_with_table(bit, i, j).unwrap_or(0xFF) as u8;
         }
     }
     table
 }
 
+#[allow(dead_code)]
 fn generate_table_helper(bit: bool, data: usize, index: usize) -> Option<usize> {
     let mut data = data;
     let mut zero_counter = 0;
