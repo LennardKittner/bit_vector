@@ -1,3 +1,4 @@
+use std::mem::size_of;
 use std::ops::Range;
 use crate::rank::RankAccelerator;
 use crate::select::SelectAccelerator;
@@ -6,6 +7,7 @@ mod rank;
 mod select;
 mod select_table;
 
+/// The base type can be changed using features
 #[cfg(feature = "UNIT_U8")]
 type Unit = u8;
 #[cfg(feature = "UNIT_U16")]
@@ -19,23 +21,31 @@ type Unit = usize;
 
 const UNIT_SIZE_BITS: usize = Unit::BITS as usize;
 
+/// A bit vector that supports fast rank and select
 pub struct BitVector {
+    /// The raw bitvector data
     data: Vec<Unit>,
+    /// The number of bits in the bit vector
     len: usize,
 
+    /// Used to accelerate rank operations
     rank_accelerator: Option<RankAccelerator>,
 
+    /// Used to accelerate zero select operations
     select_accelerator_0: Option<SelectAccelerator<false>>,
+    /// Used to accelerate one select operations
     select_accelerator_1: Option<SelectAccelerator<true>>
 }
 
 impl Default for BitVector {
+    /// Creates an empty bit vector
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl BitVector {
+    /// Creates an empty bit vector
     pub fn new() -> Self {
         BitVector {
             data: Vec::new(),
@@ -45,24 +55,40 @@ impl BitVector {
             select_accelerator_1: None
         }
     }
-    
+
+    /// Get the size of the bit vector including space on the heap
     pub fn get_size(&self) -> usize {
-        self.get_size_rank() + self.get_size_select_0() + self.get_size_select_1()
+        self.data.capacity() * size_of::<Unit>() + self.get_size_rank() + self.get_size_select_0() + self.get_size_select_1()
     }
 
+    /// Get the size of the rank accelerator including space on the heap
     pub fn get_size_rank(&self) -> usize {
-        self.rank_accelerator.as_ref().expect("Rank acceleration structures not initialized!").get_size()
+        if let Some(rank_accelerator) = &self.rank_accelerator {
+            rank_accelerator.get_size()
+        } else {
+            0
+        }
     }
 
+    /// Get the size of the select zero accelerator including space on the heap
     pub fn get_size_select_0(&self) -> usize {
-        self.select_accelerator_0.as_ref().expect("Select acceleration structures not initialized!").get_size()
+        if let Some(select_accelerator_0) = &self.select_accelerator_0 {
+            select_accelerator_0.get_size()
+        } else {
+            0
+        }
     }
 
+    /// Get the size of the select one accelerator including space on the heap
     pub fn get_size_select_1(&self) -> usize {
-        self.select_accelerator_1.as_ref().expect("Select acceleration structures not initialized!").get_size()
+        if let Some(select_accelerator_1) = &self.select_accelerator_1 {
+            select_accelerator_1.get_size()
+        } else {
+            0
+        }    
     }
 
-    // create a BitVector without initializing any helper data structures
+    /// Creates a BitVector without initializing any accelerator structures from `data`
     pub fn load_from_string(data: &str) -> Self {
         let data_it :Vec<bool> =data.chars().map(|c| {
             c == '1'
@@ -71,26 +97,31 @@ impl BitVector {
 
         let mut tmp = 0;
         for (i, &b) in data_it.iter().enumerate() {
+            // every UNIT_SIZE_BITS push tmp into the raw data vector
             if i != 0 && i % UNIT_SIZE_BITS == 0 {
                 bit_vector.data.push(tmp);
                 tmp = 0;
             }
+            // if one store into tmp
             if b {
                 tmp |= 1 << (i % UNIT_SIZE_BITS);
             }
         }
         bit_vector.data.push(tmp);
         bit_vector.len = data.len();
+        // shrink to fit the data
         bit_vector.data.shrink_to_fit();
         bit_vector
     }
 
+    /// Creates the rank accelerator
     pub fn init_rank_structures(&mut self) {
         let mut rank_accelerator = RankAccelerator::new();
         rank_accelerator.init(self);
         self.rank_accelerator = Some(rank_accelerator);
     }
 
+    /// Creates the select accelerators
     pub fn init_select_structures(&mut self) {
         let mut select_accelerator_0 = SelectAccelerator::new();
         select_accelerator_0.init(self);
@@ -100,49 +131,59 @@ impl BitVector {
         self.select_accelerator_1 = Some(select_accelerator_1);
     }
 
-    // initializes helper data structures
+    /// Initializes accelerators structures
     pub fn init(&mut self) {
         self.init_rank_structures();
         self.init_select_structures();
     }
 
+    /// Get the length of the vector
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Whether the vector is empty
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    // get bit at index
+    /// Get the bit at `index`
     #[inline]
     pub fn access(&self, index: usize) -> usize {
+        // calculate the word index
         let vec_index = index / UNIT_SIZE_BITS;
+        // calculate the bit inside the word
         let unit_index = index % UNIT_SIZE_BITS;
 
         (self.data[vec_index] >> unit_index) & 1
     }
 
+    /// Get the word starting at `index`
     #[inline]
     pub fn access_block(&self, index: usize) -> Unit {
         let vec_index = index / UNIT_SIZE_BITS;
         let shift = index % UNIT_SIZE_BITS;
+        // the lower part of the block
         let lower = self.data[vec_index] >> shift;
         if vec_index == self.data.len()-1 || shift == 0 {
             return lower;
         }
+        // the upper part of the block
         let upper = self.data[vec_index+1] << (UNIT_SIZE_BITS - shift);
         lower | upper
     }
 
+    /// Get the number of one bits in the `range`
     #[inline]
     pub fn count_ones(&self, range: Range<usize>) -> usize {
         let mut result = 0;
         let blocks: Vec<Unit> = range.clone().step_by(UNIT_SIZE_BITS).map(|i| self.access_block(i)).collect();
-
+        
+        // Count all blocks that are fully container in the range efficiently using count_ones
         for block in blocks.iter().take(blocks.len() - 1) {
             result += block.count_ones() as usize;
         }
+        // calculate a bit maks to count the ones in the last block which maybe only partial in the range
         let mask = if (range.end - range.start) % UNIT_SIZE_BITS == 0 {
             0
         } else {
@@ -153,13 +194,13 @@ impl BitVector {
         result + remaining
     }
 
-    // get number of 0/1 before index
+    /// Get the number of zero/one's before `index`
     #[inline]
     pub fn rank(&self, bit: bool, index: usize) -> usize {
         self.rank_accelerator.as_ref().expect("Rank acceleration structures not initialized!").rank(bit, index, self)
     }
 
-    // get position of index-th 0/1
+    /// Get the position of the `index`-th zero/one
     #[inline]
     pub fn select(&self, bit: bool, index: usize) -> usize {
         // index -1 because select_accelerator is zero based

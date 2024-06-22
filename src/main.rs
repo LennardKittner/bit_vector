@@ -7,6 +7,7 @@ use crate::Command::{Access, Rank, Select};
 
 const NAME :&str = "Lennard_Kittner";
 
+/// A command parsed from the input file
 #[derive(Debug)]
 enum Command {
     Access{index: usize},
@@ -15,6 +16,9 @@ enum Command {
 }
 
 impl Command {
+    
+    /// Creates a command form a string
+    /// * `string` input string
     fn from_string(string: &str) -> Self {
         let input: Vec<&str> = string.split_whitespace().collect();
         match input.as_slice() {
@@ -26,7 +30,9 @@ impl Command {
     }
 }
 
+/// Main executable takes an input and output path as commandline arguments.
 fn main() {
+    // read input
     let args :Vec<String> = args().collect();
     if args.len() < 3 {
         eprintln!("Please provide an input and output path.");
@@ -34,14 +40,17 @@ fn main() {
     }
     let path_in = &args[1];
     let path_out = &args[2];
-
+    
     let (mut bit_vector, commands) = parse_input(path_in);
-
+    
+    // start the timer
     let start_time = Instant::now();
+    // generate the acceleration structures
     bit_vector.init();
 
     let mut results = Vec::new();
-
+    
+    // execute the commands
     for command in commands {
         results.push(match command {
             Access {index} => bit_vector.access(index),
@@ -57,6 +66,7 @@ fn main() {
     file_out.write_all(out.as_bytes()).expect("Failed to write output file");
 }
 
+/// Parses the file at `path_in` to generate a bit vector and a list of commands
 fn parse_input(path_in: &str) -> (BitVector, Vec<Command>) {
     let mut file_in = File::open(path_in).unwrap();
     let mut content = String::new();
