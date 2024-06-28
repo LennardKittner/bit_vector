@@ -188,7 +188,7 @@ impl BitVector {
         }
         // calculate a bit maks to count the ones in the last block which maybe only partial in the range
         let mask = if (range.end - range.start) % UNIT_SIZE_BITS == 0 {
-            0
+            usize::MAX
         } else {
             (1 << ((range.end - range.start) % UNIT_SIZE_BITS)) - 1
         };
