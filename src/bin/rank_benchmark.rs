@@ -8,8 +8,8 @@ use rand::Rng;
 use rand::SeedableRng;
 use bit_vector::BitVector;
 
-const ITERATIONS: usize = 25;
-const NUMBER_OPERATIONS: usize = 100000;
+const POINTS: usize = 25;
+const ITERATIONS: usize = 100000;
 
 fn generate_bit_string(len: usize) -> String {
     let mut data = String::new();
@@ -35,13 +35,13 @@ fn generate_rank_queries(num: usize, range: Range<usize>) -> Vec<(bool, usize)> 
 }
 
 fn main() {
-    let bit_string = generate_bit_string(1 << ITERATIONS);
-    let mut out = format!("% rank benchmark {} iterations: {ITERATIONS} number operations: {NUMBER_OPERATIONS} \nx r\n", Local::now().format("%d/%m/%Y %H:%M"));
+    let bit_string = generate_bit_string(1 << POINTS);
+    let mut out = format!("% rank benchmark {} points: {POINTS} iterations: {ITERATIONS}\nx r\n", Local::now().format("%d/%m/%Y %H:%M"));
     
-    for i in 0..ITERATIONS {
+    for i in 0..POINTS {
         let mut vector = BitVector::load_from_string(&bit_string[..(1 << i)]);
         vector.init_rank_structures();
-        let commands = generate_rank_queries(NUMBER_OPERATIONS, 0..(1 << i));
+        let commands = generate_rank_queries(ITERATIONS, 0..(1 << i));
 
         let start = Instant::now();
         for command in commands {
@@ -50,7 +50,7 @@ fn main() {
         let end = Instant::now();
         let t = (end - start).as_secs_f64();
 
-        out += &format!("{} {}\n", 1 << i, NUMBER_OPERATIONS as f64 / t);
+        out += &format!("{} {}\n", 1 << i, ITERATIONS as f64 / t);
     }
     let mut file = File::create("./rank_benchmark.tex").unwrap();
     file.write_all(out.as_bytes()).unwrap();
