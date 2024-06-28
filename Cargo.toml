@@ -14,7 +14,6 @@ UNIT_USIZE = []
 default = ["UNIT_USIZE", "USE_SELECT_TABLE"]
 
 [dependencies]
-
-[dev-dependencies]
 rand = "0.8.5"
 rand_chacha = "0.3.1"
+chrono = "0.4"
