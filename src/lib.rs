@@ -8,6 +8,7 @@ mod select;
 mod select_table;
 
 /// The base type can be changed using features
+/// TODO: Select and Rank maybe require larger blocks
 #[cfg(feature = "UNIT_U8")]
 type Unit = u8;
 #[cfg(feature = "UNIT_U16")]
@@ -138,11 +139,13 @@ impl BitVector {
     }
 
     /// Get the length of the vector
+    #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
     /// Whether the vector is empty
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
