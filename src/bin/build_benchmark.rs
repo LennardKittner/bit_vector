@@ -25,7 +25,7 @@ fn generate_bit_string(len: usize) -> String {
 
 fn main() {
     let bit_string = generate_bit_string(1 << POINTS);
-    let mut out = format!("% build benchmark {} points: {POINTS} iterations: {ITERATIONS}\nx r s b\n", Local::now().format("%d/%m/%Y %H:%M"));
+    let mut out = format!("% build benchmark {} points: {POINTS} iterations: {ITERATIONS}\nx r s b space\n", Local::now().format("%d/%m/%Y %H:%M"));
 
     for i in 0..POINTS {
         let mut vector = BitVector::load_from_string(&bit_string[..(1 << i)]);
@@ -42,7 +42,7 @@ fn main() {
             let end = Instant::now();
             select += (end - start).as_secs_f64() / ITERATIONS as f64;
         }
-        out += &format!("{} {} {} {}\n", 1 << i, rank, select, rank + select);
+        out += &format!("{} {} {} {} {}\n", 1 << i, rank, select, rank + select, vector.get_size());
     }
     let mut file = File::create("./build_benchmark.tex").unwrap();
     file.write_all(out.as_bytes()).unwrap();
