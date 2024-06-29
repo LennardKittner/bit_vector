@@ -8,7 +8,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use bit_vector::BitVector;
 
-const POINTS: usize = 25;
+const POINTS: usize = 32;
 const ITERATIONS: usize = 1000000;
 
 fn generate_bit_string(len: usize) -> String {
@@ -39,15 +39,15 @@ fn generate_select_queries(num: usize, range0: Range<usize>, range1: Range<usize
 }
 
 fn main() {
-    let bit_string = generate_bit_string(1 << POINTS);
+    let bit_string = generate_bit_string(1usize << POINTS);
     let mut out = format!("% select benchmark {} points: {POINTS} iterations: {ITERATIONS} \nx r\n", Local::now().format("%d/%m/%Y %H:%M"));
     
     for i in 1..POINTS {
-        let mut vector = BitVector::load_from_string(&bit_string[..(1 << i)]);
+        let mut vector = BitVector::load_from_string(&bit_string[..(1usize << i)]);
         vector.init_select_structures();
-        let ones = vector.count_ones(0..(1 << i));
+        let ones = vector.count_ones(0..(1usize << i));
   
-        let commands = generate_select_queries(ITERATIONS, 1..((1 << i) - ones + 1), 1..(ones+1));
+        let commands = generate_select_queries(ITERATIONS, 1..((1usize << i) - ones + 1), 1..(ones+1));
 
         let start = Instant::now();
         for command in commands {
@@ -56,7 +56,7 @@ fn main() {
         let end = Instant::now();
         let t = (end - start).as_secs_f64();
 
-        out += &format!("{} {}\n", 1 << i, ITERATIONS as f64 / t);
+        out += &format!("{} {}\n", 1usize << i, ITERATIONS as f64 / t);
     }
     let mut file = File::create("./select_benchmark.tex").unwrap();
     file.write_all(out.as_bytes()).unwrap();

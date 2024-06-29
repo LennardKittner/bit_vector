@@ -7,7 +7,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use bit_vector::BitVector;
 
-const POINTS: usize = 25;
+const POINTS: usize = 32;
 const ITERATIONS: usize = 10;
 
 fn generate_bit_string(len: usize) -> String {
@@ -24,11 +24,11 @@ fn generate_bit_string(len: usize) -> String {
 }
 
 fn main() {
-    let bit_string = generate_bit_string(1 << POINTS);
-    let mut out = format!("% build benchmark {} points: {POINTS} iterations: {ITERATIONS}\nx r s b space\n", Local::now().format("%d/%m/%Y %H:%M"));
+    let bit_string = generate_bit_string(1usize << POINTS);
+    let mut out = format!("% build benchmark {} points: {POINTS} iterations: {ITERATIONS}\nbits rankT selectT bothT rankS selectS bothS\n", Local::now().format("%d/%m/%Y %H:%M"));
 
     for i in 0..POINTS {
-        let mut vector = BitVector::load_from_string(&bit_string[..(1 << i)]);
+        let mut vector = BitVector::load_from_string(&bit_string[..(1usize << i)]);
         let mut rank = 0f64;
         let mut select = 0f64;
         for _ in 0..ITERATIONS {
@@ -42,7 +42,7 @@ fn main() {
             let end = Instant::now();
             select += (end - start).as_secs_f64() / ITERATIONS as f64;
         }
-        out += &format!("{} {} {} {} {}\n", 1 << i, rank, select, rank + select, vector.get_size());
+        out += &format!("{} {} {} {} {} {} {} \n", 1usize << i, rank, select, rank + select, vector.get_size_rank(), vector.get_size_select_1() + vector.get_size_select_0(), vector.get_size());
     }
     let mut file = File::create("./build_benchmark.tex").unwrap();
     file.write_all(out.as_bytes()).unwrap();
