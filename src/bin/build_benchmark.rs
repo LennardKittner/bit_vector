@@ -1,5 +1,6 @@
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::path::Path;
 use std::time::Instant;
 use chrono::Local;
 use rand_chacha::ChaCha8Rng;
@@ -11,6 +12,15 @@ const POINTS: usize = 32;
 const ITERATIONS: usize = 10;
 
 fn generate_bit_string(len: usize) -> String {
+    let cache_path = Path::new("bit_vector.cache");
+    if cache_path.exists() {
+        let mut cache = File::open("bit_vector.cache").unwrap();
+        let mut content = String::new();
+        let cache_len = cache.read_to_string(&mut content).unwrap();
+        if len == cache_len {
+            return content;
+        }
+    }
     let mut data = String::new();
     let mut rng = ChaCha8Rng::seed_from_u64(1234567);
     for _ in 0..len {
@@ -20,6 +30,8 @@ fn generate_bit_string(len: usize) -> String {
             data += "1";
         }
     }
+    let mut cache = File::create("bit_vector.cache").unwrap();
+    cache.write_all(data.as_bytes()).unwrap();
     data
 }
 
