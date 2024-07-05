@@ -47,7 +47,7 @@ fn generate_rank_queries(num: usize, range: Range<usize>) -> Vec<(bool, usize)> 
 }
 
 fn main() {
-    let bit_string = generate_bit_string(1usize << POINTS);
+    let bit_string = generate_bit_string(1usize << (POINTS-1));
     let mut out = format!("% rank benchmark {} points: {POINTS} iterations: {ITERATIONS}\nx r\n", Local::now().format("%d/%m/%Y %H:%M"));
     
     for i in 0..POINTS {

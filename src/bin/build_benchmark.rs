@@ -36,7 +36,7 @@ fn generate_bit_string(len: usize) -> String {
 }
 
 fn main() {
-    let bit_string = generate_bit_string(1usize << POINTS);
+    let bit_string = generate_bit_string(1usize << (POINTS-1));
     let mut out = format!("% build benchmark {} points: {POINTS} iterations: {ITERATIONS}\nbits rankT selectT bothT rankS selectS bothS\n", Local::now().format("%d/%m/%Y %H:%M"));
 
     for i in 0..POINTS {

@@ -51,7 +51,7 @@ fn generate_select_queries(num: usize, range0: Range<usize>, range1: Range<usize
 }
 
 fn main() {
-    let bit_string = generate_bit_string(1usize << POINTS);
+    let bit_string = generate_bit_string(1usize << (POINTS-1));
     let mut out = format!("% select benchmark {} points: {POINTS} iterations: {ITERATIONS} \nx r\n", Local::now().format("%d/%m/%Y %H:%M"));
     
     for i in 1..POINTS {
