@@ -8,7 +8,6 @@ mod select;
 mod select_table;
 
 /// The base type can be changed using features
-/// TODO: Select and Rank maybe require larger blocks
 #[cfg(feature = "UNIT_U8")]
 type Unit = u8;
 #[cfg(feature = "UNIT_U16")]
@@ -158,7 +157,7 @@ impl BitVector {
         // calculate the bit inside the word
         let unit_index = index % UNIT_SIZE_BITS;
 
-        (self.data[vec_index] >> unit_index) & 1
+        ((self.data[vec_index] >> unit_index) & 1) as usize
     }
 
     /// Get the word starting at `index`
@@ -193,7 +192,7 @@ impl BitVector {
             (1 << ((range.end - range.start) % UNIT_SIZE_BITS)) - 1
         };
         let last_block = blocks.last().unwrap();
-        let remaining = (last_block & mask).count_ones() as usize;
+        let remaining = (last_block & (mask as Unit)).count_ones() as usize;
         result + remaining
     }
 

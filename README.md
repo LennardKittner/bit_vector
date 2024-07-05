@@ -17,6 +17,9 @@ Other options are e.g. `UNIT_U8` or `UNIT_U16` to use `u8` and `u16` as type to 
 ` cargo run --release --bin bit_vector --no-default-features --features "USE_SELECT_TABLE, UNIT_U8" -- <in_path> <out_path>`
 will run the main executable with `u8` as raw data type.
 
+> It should be noted that `UNIT` must be at least as large as the smallest block used by the data structures.
+> Therefore, for rank queries, `UNIT` needs to be at least `log(n)/2` bits, and for select queries, it needs to be at least `log(n)` bits.
+
 ## Documentation
 Documentation is available and can be generated and opened with
 `cargo doc --open`
