@@ -2,3 +2,6 @@
 .idea/
 in.txt
 out.txt
+**.cache
+**.tex
+run_benchmarks
